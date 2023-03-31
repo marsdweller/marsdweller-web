@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <title>Flight Paths</title>
+        <meta charset="utf-8">
+
+        <!-- Linking Leaflet & Turf.js -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css"/>
+        <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"></script>
+        <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+        <script src="https://npmcdn.com/@turf/turf/turf.min.js"></script>
+    </head>
+
+    <body>
+        <div id="mapid" style="width: 1500px; height: 700px"></div>
+
+        <!-- Flight Path text & input boxes -->
+        <div id="controls" style="margin: 15px;">
+            <p>Airport Origin:</p>
+            <span style="display:inline-block; width: 30px"></span>
+            <input type="text" id="AirportOrigin" placeholder="YVR"/>
+            
+            <p>Airport Destination:</p>
+            <span style="display:inline-block; width: 30px"></span>
+            <input type="text" id="AirportDestination" placeholder="JFK"/>
+        </div>
+
+        <div id="buttons" style="margin: 15px;">
+            <button id="createAirports">Get Airports</button>
+            <button id="createGreatCircle">Flight path</button>
+        </div>
+
+        <script>
+            var map = L.map('mapid', {
+                zoom: 3, center: [45, -100] // Lat then Long
+            });
+
+            var topotiles = L.tileLayer(
+                'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>', maxZoom: 13
+                }
+            ).addTo(map);
+
+            function onEachAirport(feature, layer) {
+                if (feature.properties && feature.properties.Orig) {
+                    var popupContent = '<b>' + feature.properties.CountryName + '</b><br/>' +
+                        'IATA Code: ' + feature.properties.Orig + '<br/>' +
+                        'Name: ' + feature.properties.Name;
+                    layer.bindTooltip(popupContent);
+                };
+            };
+
+            var airportMarkerOptions = {
+                radius: 10,
+                fillColor: "#52B2BF",
+                color: "#52B2BF",
+                weight: 1,
+                opacity: 0.5,
+                fillOpacity: 0.5
+            };
+
+            function airportPointToLayer (feature, latlng) {
+                return L.circleMarker(latlng, airportMarkerOptions);
+           };
+           
+           var currOriginLatLon;
+           var currDestinationLatLon;
+
+            function airportsToFilter (feature, layer) {
+                if (selectedAirports[0] === "") {
+                    return false;
+                } else if (feature.properties && feature.properties.Orig) {
+                    var foundOrigin =  feature.properties.Orig.toLowerCase().includes(selectedAirports[0].toLowerCase());
+                    if (foundOrigin) { currOriginLatLon = feature.geometry.coordinates; }
+                    return foundOrigin;
+                } else {
+                    return false;
+                }
+            };
+
+            function airportsToFilter2 (feature, layer) {
+                if (selectedAirports[1] === "") {
+                    return false;
+                } else if (feature.properties && feature.properties.Orig) {
+                    var foundDestination = feature.properties.Orig.toLowerCase().includes(selectedAirports[1].toLowerCase());
+                    if (foundDestination) { currDestinationLatLon = feature.geometry.coordinates; }
+                    return foundDestination;
+                } else {
+                    return false;
+                }
+            };
+
+            var originLayer = [];
+            var destinationLayer = [];
+            var flightpathLayer = [];
+
+            function addAirports() {
+                if(map.hasLayer(originLayer)){
+                    map.removeLayer(originLayer);
+                    }
+                originLayer = L.geoJSON(airportGeoJSONdata, {
+                    pointToLayer: airportPointToLayer,
+                    onEachFeature: onEachAirport,
+                    filter: airportsToFilter
+                });
+                originLayer.addTo(map);
+            }
+
+            function addAirports2() {
+                if(map.hasLayer(destinationLayer)){
+                    map.removeLayer(destinationLayer);
+                    }
+                destinationLayer = L.geoJSON(airportGeoJSONdata, {
+                    pointToLayer: airportPointToLayer,
+                    onEachFeature: onEachAirport,
+                    filter: airportsToFilter2
+                });
+                destinationLayer.addTo(map);
+            }
+
+            function addflightpath() {
+                if(map.hasLayer(flightpathLayer)){
+                    map.removeLayer(flightpathLayer);
+                }
+                var flightpathGreatCircle = turf.greatCircle(currOriginLatLon, currDestinationLatLon);
+                var bufferedFlightPath = turf.buffer(flightpathGreatCircle, 1, {unit: 'kilometers'});
+                flightpathLayer = L.geoJSON(bufferedFlightPath);
+                flightpathLayer.addTo(map);
+            }
+
+            var airportOrigin = "";
+            var airportDestination = "";
+            var selectedAirports = [airportOrigin, airportDestination];
+            var airports = ["AirportOrigin", "AirportDestination"];
+
+            function selectAirport () {
+                selectedAirports[0] = document.getElementById(airports[0]).value
+                selectedAirports[1] = document.getElementById(airports[1]).value
+                addAirports();
+                addAirports2();
+                selectedAirports[0] = "";
+                selectedAirports[1] = "";
+            };
+
+            var airportGeoJSONdata;
+
+            $.getJSON("https://raw.githubusercontent.com/marsdweller/marsdweller-web/main/Airport_Locations.geojson",
+            function(data) {
+                airportGeoJSONdata = data;
+                document.getElementById("createAirports").addEventListener("click", selectAirport);
+                document.getElementById("createGreatCircle").addEventListener("click", addflightpath);
+            });
+
+        </script>
+    </body>
+
+</html>
