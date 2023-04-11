@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Food Insecurity Choropleth Map</title>
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+</head>
+
+<body>
+    <div id="mapid" style="width: 1500px; height: 700px"></div>
+
+    <div id="buttons" style="margin: 15px;">
+        <button id="getTotal">Food Insecurity: Total</button>
+        <button id="getMarginal">Food Insecurity: Marginal</button>
+        <button id="getModerate">Food Insecurity: Moderate</button>
+        <button id="getSevere">Food Insecurity: Severe</button>
+    </div>
+
+    <script>
+
+        var map = L.map('mapid', {
+            zoom: 4, center: [62.2270, -105.3809] // Lat then Long
+        });
+
+        var topotiles = L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community', maxZoom: 13
+            }
+        ).addTo(map);
+
+        //style
+        function getColor(d) {
+            return d > 20 ? '#800026' :
+                d > 17  ? '#BD0026' :
+                d > 14  ? '#E31A1C' :
+                d > 11  ? '#FC4E2A' :
+                d > 8   ? '#FD8D3C' :
+                d > 5   ? '#FEB24C' :
+                d > 2   ? '#FED976' :
+                            '#FFEDA0';
+        }
+
+        function styleTotal(feature) {
+            return {
+                fillColor: getColor(feature.properties.foodinsecurity_total),
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 1
+            };
+        }
+
+        function styleMarginal(feature) {
+            return {
+                fillColor: getColor(feature.properties.foodinsecurity_marginal),
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 1
+            };
+        }
+
+        function styleModerate(feature) {
+            return {
+                fillColor: getColor(feature.properties.foodinsecurity_moderate),
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 1
+            };
+        }
+
+        function styleSevere(feature) {
+            return {
+                fillColor: getColor(feature.properties.foodinsecurity_severe),
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 1
+            };
+        }
+
+        //on each feature
+        function highlightFeature(feature, layer) {
+            var popupContent = '<b>' + feature.properties.province_name + '</b><br/>' +
+                        'Food Insecurity Total: ' + (feature.properties.foodinsecurity_total).toFixed(2) + '%' + '<br/>' +
+                        'Food Insecurity Marginal: ' + (feature.properties.foodinsecurity_marginal).toFixed(2) + '%' + '<br/>' +
+                        'Food Insecurity Moderate: ' + (feature.properties.foodinsecurity_moderate).toFixed(2) + '%' + '<br/>' +
+                        'Food Insecurity Severe: ' + (feature.properties.foodinsecurity_severe).toFixed(2) + '%';
+                    layer.bindTooltip(popupContent);
+        }
+
+        //layer
+        var choroplethLayer = [];
+
+        //eventlistener functions
+        function showTotal() {
+            if(map.hasLayer(choroplethLayer)){
+                map.removeLayer(choroplethLayer);
+            }
+            choroplethLayer = L.geoJson(provincialData, {
+                style: styleTotal,
+                onEachFeature: highlightFeature});
+            choroplethLayer.addTo(map);
+        };
+
+        function showMarginal() {
+            if(map.hasLayer(choroplethLayer)){
+                map.removeLayer(choroplethLayer);
+            }
+            choroplethLayer = L.geoJson(provincialData, {
+                style: styleMarginal,
+                onEachFeature: highlightFeature});
+            choroplethLayer.addTo(map);
+        };
+
+        function showModerate() {
+            if(map.hasLayer(choroplethLayer)){
+                map.removeLayer(choroplethLayer);
+            }
+            choroplethLayer = L.geoJson(provincialData, {
+                style: styleModerate,
+                onEachFeature: highlightFeature});
+            choroplethLayer.addTo(map);
+        };
+
+        function showSevere() {
+            if(map.hasLayer(choroplethLayer)){
+                map.removeLayer(choroplethLayer);
+            }
+            choroplethLayer = L.geoJson(provincialData, {
+                style: styleSevere,
+                onEachFeature: highlightFeature});
+            choroplethLayer.addTo(map);
+        };
+
+        //custom info control
+        var info = L.control();
+
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"
+            this.update();
+            return this._div;
+        };
+
+        // Legend
+        var legend = L.control({position: 'bottomright'});
+        
+        legend.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'info legend'),
+                grades = [0, 2, 5, 8, 11, 14, 17, 20],
+                labels = [];
+            // loop through our density intervals and generate a label with a colored square for each interval
+            for (var i = 0; i < grades.length; i++) {
+                div.innerHTML +=
+                    '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+                    grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+            }
+            return div;
+        };
+        
+
+        legend.addTo(map);
+
+        //data
+        var provincialData;
+
+        $.getJSON("https://raw.githubusercontent.com/marsdweller/FoodSecurity/main/ne_10m_admin_1_FeaturesToJSO.geojson?token=GHSAT0AAAAAAB7QLW2IMZRJ45374H4TOGNYZBU6NBQ",
+            function(data) {
+                provincialData = data;
+                document.getElementById("getTotal").addEventListener("click", showTotal);
+                document.getElementById("getMarginal").addEventListener("click", showMarginal);
+                document.getElementById("getModerate").addEventListener("click", showModerate);
+                document.getElementById("getSevere").addEventListener("click", showSevere);
+            }
+        );
+
+    </script>
+</body>
